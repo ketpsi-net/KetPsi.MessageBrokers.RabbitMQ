@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KetPsi.MessageBrokers.RabbitMQ/KetPsi.MessageBrokers.RabbitMQ.csproj" />
+    <Project Path="src/KetPsi.MessageBrokers.RabbitMQ.Generators/KetPsi.MessageBrokers.RabbitMQ.Generators.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KetPsi.MessageBrokers.RabbitMQ.Generators.Tests/KetPsi.MessageBrokers.RabbitMQ.Generators.Tests.csproj" />
+    <Project Path="tests/KetPsi.MessageBrokers.RabbitMQ.Tests/KetPsi.MessageBrokers.RabbitMQ.Tests.csproj" />
+  </Folder>
+</Solution>

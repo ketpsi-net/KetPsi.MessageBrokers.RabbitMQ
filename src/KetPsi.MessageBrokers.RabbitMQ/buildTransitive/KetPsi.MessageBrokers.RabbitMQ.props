@@ -1,0 +1,6 @@
+<Project>
+  <!-- The package's source generator rewrites AddSubscriber<THandler> calls through interceptors in this namespace. -->
+  <PropertyGroup>
+    <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);KetPsi.MessageBrokers.RabbitMQ.Generated</InterceptorsPreviewNamespaces>
+  </PropertyGroup>
+</Project>

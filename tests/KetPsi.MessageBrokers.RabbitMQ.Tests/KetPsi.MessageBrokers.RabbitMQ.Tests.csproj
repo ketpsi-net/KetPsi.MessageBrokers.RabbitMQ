@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Unit tests of KetPsi.MessageBrokers.RabbitMQ, and integration tests against a RabbitMQ broker in Testcontainers.</Description>
+    <TargetFrameworks>$(KetPsiTargetFrameworks)</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+  </ItemGroup>
+
+  <!-- Referenced the way the package ships it: the generator as an analyzer, and the props that enable its interceptors. -->
+  <Import Project="..\..\src\KetPsi.MessageBrokers.RabbitMQ\buildTransitive\KetPsi.MessageBrokers.RabbitMQ.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\KetPsi.MessageBrokers.RabbitMQ\KetPsi.MessageBrokers.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\src\KetPsi.MessageBrokers.RabbitMQ.Generators\KetPsi.MessageBrokers.RabbitMQ.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

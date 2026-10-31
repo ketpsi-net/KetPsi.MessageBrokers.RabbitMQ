@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\version.props" />
+
+  <PropertyGroup>
+    <TargetFrameworks>$(KetPsiTargetFrameworks)</TargetFrameworks>
+    <Description>Native AOT and trim compatible publish/subscribe on RabbitMQ.Client 7. Subscribers are plain handler classes resolved per message from a DI scope; publishers are typed per message. A source generator infers each handler's message type. JSON uses source-generated contracts, falling back to reflection only where reflection is enabled.</Description>
+    <PackageTags>rabbitmq;amqp;messaging;pubsub;nativeaot;aot;trimming;ketpsi</PackageTags>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <!-- KetPsi.Extensions.Logging rewrites interpolated log calls through interceptors in this namespace. -->
+    <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);KetPsi.Extensions.Logging</InterceptorsPreviewNamespaces>
+    <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2057;IL2067;IL2070;IL2072;IL2075;IL2087;IL2090;IL2091;IL2092;IL2095;IL3050;IL3051</WarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="KetPsi.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <!-- The generator ships in the package as an analyzer; the props opts consumers into its interceptors. -->
+  <ItemGroup>
+    <ProjectReference Include="..\KetPsi.MessageBrokers.RabbitMQ.Generators\KetPsi.MessageBrokers.RabbitMQ.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="..\KetPsi.MessageBrokers.RabbitMQ.Generators\bin\$(Configuration)\netstandard2.0\KetPsi.MessageBrokers.RabbitMQ.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="buildTransitive\KetPsi.MessageBrokers.RabbitMQ.props" Pack="true" PackagePath="build;buildTransitive" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KetPsi.MessageBrokers.RabbitMQ.Tests" />
+  </ItemGroup>
+
+</Project>
