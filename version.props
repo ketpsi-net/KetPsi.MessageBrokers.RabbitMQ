@@ -6,7 +6,6 @@
 		<PackageId>$(AssemblyName)</PackageId>
 		<PackageProjectUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</PackageProjectUrl>
 		<PackageReadmeFile>README.MD</PackageReadmeFile>
-		<PackageReleaseNotes>https://github.com/ketpsi-net/KetPsi.RabbitMQ/blob/main/release_notes.md</PackageReleaseNotes>
 		<RepositoryUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</RepositoryUrl>
 		<PackageIcon>icon.png</PackageIcon>
 		<Icon>icon.png</Icon>
