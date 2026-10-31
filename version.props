@@ -1,0 +1,35 @@
+<Project>
+	<PropertyGroup>
+		<Title>$(AssemblyName)</Title>
+		<Version>1.0.0-preview.1</Version>
+		<Authors>KetPsi</Authors>
+		<PackageId>$(AssemblyName)</PackageId>
+		<PackageProjectUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</PackageProjectUrl>
+		<PackageReadmeFile>README.MD</PackageReadmeFile>
+		<PackageReleaseNotes>https://github.com/ketpsi-net/KetPsi.RabbitMQ/blob/main/release_notes.md</PackageReleaseNotes>
+		<RepositoryUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</RepositoryUrl>
+		<PackageIcon>icon.png</PackageIcon>
+		<Icon>icon.png</Icon>
+		<Copyright>Copyright © 2026 KetPsi</Copyright>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<IsPackable>true</IsPackable>
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+	<ItemGroup>
+		<None Include="README.MD">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\icon.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Include="..\..\LICENSE">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+</Project>
