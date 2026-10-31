@@ -1,0 +1,30 @@
+name: Push to NuGet
+
+description: 'A GitHub Action to push a NuGet package to a NuGet repository.'
+
+inputs:
+  package_path:
+    required: true
+    description: 'Path to the NuGet package to push.'
+    type: string
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        # The SDK pinned in global.json; KetPsi.Extensions.Logging's generator needs Roslyn 5.6 or later.
+        global-json-file: global.json
+
+    - name: Download Package
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-packages
+        path: ./pack
+
+    - name: Push package to NuGet
+      run: |
+        echo PP:"${{ inputs.package_path }}"
+        dotnet nuget push "${{ inputs.package_path }}" --api-key "${{ env.NUGET_API_KEY }}" --source "${{ env.NUGET_SOURCE }}" --skip-duplicate
+      shell: bash

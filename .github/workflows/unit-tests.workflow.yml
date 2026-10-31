@@ -1,0 +1,110 @@
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+      - release/**
+
+jobs:
+  test-prerequisite:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_test: ${{ steps.check-branches.outputs.should_run_test }}
+    steps:
+      - name: CheckBranches
+        id: check-branches
+        run: |
+          if [[ ($GITHUB_BASE_REF == "main" && ! $GITHUB_HEAD_REF =~ release/*) ||
+               ($GITHUB_BASE_REF == "dev" && $GITHUB_HEAD_REF != "main" && ! $GITHUB_HEAD_REF =~ release/*) ||
+               ($GITHUB_BASE_REF =~ release/* && $GITHUB_HEAD_REF != "main" && $GITHUB_HEAD_REF != "dev") ]]; then
+             echo "should_run_test=true" >> "$GITHUB_OUTPUT"
+          else
+             echo "should_run_test=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Linux, because the integration tests start RabbitMQ in Docker through Testcontainers.
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: [test-prerequisite]
+    if: needs.test-prerequisite.outputs.should_run_test == 'true'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Pack
+        run: dotnet pack --no-build --configuration Release --output artifacts/packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages/*.nupkg
+
+  # Publishes the sample with Native AOT, fails on any trim or AOT warning (the library adds none, so there is no
+  # baseline), and round-trips a message through a RabbitMQ service container with the native binary.
+  aot:
+    runs-on: ubuntu-latest
+    needs: [test-prerequisite]
+    if: needs.test-prerequisite.outputs.should_run_test == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [net8.0, net9.0, net10.0]
+    services:
+      rabbitmq:
+        image: rabbitmq:4.1-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_port_connectivity"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+          global-json-file: global.json
+
+      - name: Publish with Native AOT
+        run: |
+          set -o pipefail
+          dotnet publish samples/AotSample --configuration Release --framework ${{ matrix.framework }} --runtime linux-x64 --output artifacts/aot -nologo 2>&1 | tee publish.log
+
+      - name: Check trim and AOT warnings
+        run: |
+          if grep -E "warning IL[23][0-9]{3}" publish.log; then
+            echo "::error::Native AOT publish for ${{ matrix.framework }} reported trim or AOT warnings."
+            exit 1
+          fi
+          echo "No trim or AOT warnings."
+
+      - name: Run the sample
+        env:
+          # No credentials: they default to guest/guest. The host is read from an environment variable, as the
+          # connection string supports.
+          BROKER_HOST: localhost
+          ConnectionStrings__RabbitMq: amqp://%BROKER_HOST%:5672
+        run: ./artifacts/aot/AotSample
