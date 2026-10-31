@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Native AOT sample: one subscriber bound from configuration and one publisher, through a source-generated JSON context, logging through the KetPsi zero-alloc console. Published with PublishAot, then run against a broker to check a message round-trips.</Description>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>$(KetPsiTargetFrameworks)</TargetFrameworks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Report each trim/AOT warning individually, including any inside packages, instead of one per assembly. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- An application, not API. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="KetPsi.Extensions.Logging.Console" />
+  </ItemGroup>
+
+  <!-- Referenced the way the package ships it: the generator as an analyzer, and the props that enable its interceptors. -->
+  <Import Project="..\..\src\KetPsi.MessageBrokers.RabbitMQ\buildTransitive\KetPsi.MessageBrokers.RabbitMQ.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\KetPsi.MessageBrokers.RabbitMQ\KetPsi.MessageBrokers.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\src\KetPsi.MessageBrokers.RabbitMQ.Generators\KetPsi.MessageBrokers.RabbitMQ.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
