@@ -233,6 +233,15 @@ targeting `net8.0`.
 
 ---
 
+## For AI coding agents
+
+[skills/ketpsi-rabbitmq/SKILL.md](./skills/ketpsi-rabbitmq/SKILL.md) is a usage guide written for coding agents. It
+covers registration, handlers, publishers, connection strings, JSON contracts, Native AOT and the `KPRMQ` diagnostics.
+Copy the `ketpsi-rabbitmq` folder into your agent's skills directory, for example `~/.claude/skills/` or
+`.claude/skills/` in your repository.
+
+---
+
 ## Building this repository
 
 ```bash
