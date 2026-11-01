@@ -55,4 +55,4 @@ Use `ConfigureConnection(...)` to set or override the connection in code.
 The bundled source generator needs the .NET 9.0.300 SDK or later, also when targeting `net8.0`. Without it,
 `AddSubscriber<THandler>` cannot infer the message type; call `AddSubscriber<THandler, TMessage>` instead.
 
-Documentation: https://github.com/ketpsi-net/KetPsi.RabbitMQ
+Documentation: https://github.com/ketpsi-net/KetPsi.MessageBrokers.RabbitMQ
