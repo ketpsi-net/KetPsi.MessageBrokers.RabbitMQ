@@ -8,8 +8,8 @@ internal static class SubscriberDiagnostics
 
     public static readonly DiagnosticDescriptor NoHandlerInterface = new(
         "KPRMQ001",
-        "Handler implements no IRabbitMqHandler<T>",
-        "'{0}' implements no IRabbitMqHandler<T>, so AddSubscriber<{0}> cannot infer its message type",
+        "Handler implements no handler interface",
+        "'{0}' implements neither IRabbitMqHandler<T> nor IRabbitMqHandler, so AddSubscriber<{0}> cannot register it",
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -34,6 +34,14 @@ internal static class SubscriberDiagnostics
         "KPRMQ004",
         "Handler is abstract or an interface",
         "'{0}' is abstract or an interface; register a concrete handler class that DI can create",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor RawAndTypedHandler = new(
+        "KPRMQ006",
+        "Handler implements both IRabbitMqHandler and IRabbitMqHandler<T>",
+        "'{0}' implements both IRabbitMqHandler and IRabbitMqHandler<{1}>; implement IRabbitMqHandler for raw messages or IRabbitMqHandler<T> for deserialized ones, not both",
         Category,
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);

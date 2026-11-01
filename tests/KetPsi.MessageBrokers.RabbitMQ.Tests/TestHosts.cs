@@ -17,6 +17,7 @@ internal static class TestHosts
 
         builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
         builder.Services.AddSingleton<MessageRecorder>();
+        builder.Services.AddSingleton<RawMessageRecorder>();
         builder.Services.AddScoped<ScopedProbe>();
         return builder;
     }

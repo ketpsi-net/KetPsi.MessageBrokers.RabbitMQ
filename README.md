@@ -136,14 +136,15 @@ rabbit.AddSubscriber<OrderPlacedHandler>("Messaging:OrderPlaced");   // bind the
 
 - The handler returns: the message is **acked**.
 - The handler throws: it is **nacked**, and requeued or not according to `RequeueOnError`.
-- The body is not valid JSON, or is `null`: it is **rejected without requeue**, so it is dead-lettered when a
-  dead-letter exchange is set.
+- The body is not valid JSON, or is `null` (typed handlers only): it is **rejected without requeue**, so it is
+  dead-lettered when a dead-letter exchange is set.
 - The host shuts down while the handler runs: the handler's token is canceled and the message is **requeued**.
 - The handler can also settle the message itself with `context.AckAsync()` or `context.NackAsync(requeue)`. A message
   is settled only once.
 
-`MessageContext<T>` also exposes `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and `Properties`, which
-includes the headers.
+`MessageContext<T>` also exposes the raw `Body` and `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and
+`Properties`, which includes the content type and headers. To receive messages without deserializing them, see
+[Raw bytes](#raw-bytes).
 
 **Startup and shutdown.** All consumers **start at the same time** with the host, so a slow queue declaration does not
 hold up the others. The first consumer that fails cancels the rest and **fails host startup**. On shutdown each
@@ -155,16 +156,18 @@ channel.
 `AddSubscriber<OrderPlacedHandler>` is rewritten at compile time into
 `AddSubscriber<OrderPlacedHandler, OrderPlaced>`, with the message type read from the `IRabbitMqHandler<T>` the handler
 implements. The rewrite uses C# interceptors and needs no reflection. The package enables the interceptors for you.
+Raw handlers have no message type to infer, so the generator leaves their calls alone.
 
 When a handler can't be registered this way, the build fails:
 
 | ID | Problem | Fix |
 |---|---|---|
-| `KPRMQ001` | The class implements no `IRabbitMqHandler<T>`. | Implement it. |
+| `KPRMQ001` | The class implements neither `IRabbitMqHandler<T>` nor `IRabbitMqHandler`. | Implement one of them. |
 | `KPRMQ002` | The class handles more than one message type. | Call `AddSubscriber<THandler, TMessage>` once per message type. |
 | `KPRMQ003` | The handler is a generic type parameter. | Call `AddSubscriber<THandler, TMessage>`. |
 | `KPRMQ004` | The handler is abstract or an interface. | Register a concrete class. |
 | `KPRMQ005` | The handler or message type is private or `file`-scoped. | Make it `internal` or `public`. |
+| `KPRMQ006` | The class implements both `IRabbitMqHandler` and `IRabbitMqHandler<T>`. | Keep one: raw or typed. |
 
 `AddSubscriber<THandler, TMessage>` can always be called directly.
 
@@ -188,7 +191,67 @@ rabbit.AddPublisher<OrderPlaced>("Messaging:Publishers:OrderPlaced");
 
 `IRabbitMqPublisher<T>` is a singleton with one long-lived channel. Publishes are serialized on it, and messages are
 sent as persistent `application/json`. `PublishAsync(message, routingKey, headers)` overrides the routing key and adds
-headers. There is one publisher per message type.
+headers. There is one publisher per message type. To publish bytes you have serialized yourself, see
+[Raw bytes](#raw-bytes).
+
+---
+
+## Raw bytes
+
+Three ways to work with the bytes on the wire instead of, or as well as, deserialized messages.
+
+**1. Read the raw body in a typed handler.** `MessageContext<T>` derives from `MessageContext`, so every handler has
+the body exactly as it was published, next to the deserialized `Message`. Use it to log, archive, verify a signature
+or forward the original bytes:
+
+```csharp
+internal sealed class OrderPlacedHandler(IArchive archive) : IRabbitMqHandler<OrderPlaced>
+{
+    public async Task HandleAsync(MessageContext<OrderPlaced> context, CancellationToken cancellationToken)
+    {
+        await archive.SaveAsync(context.Message.OrderId, context.Body.ToArray(), cancellationToken);
+        // ... handle context.Message
+    }
+}
+```
+
+**2. Receive raw messages: implement `IRabbitMqHandler`.** The non-generic handler gets `MessageContext`, without
+`Message`, and nothing is deserialized. Use it for formats other than JSON (protobuf, Avro, text), or to deserialize
+the body yourself:
+
+```csharp
+internal sealed class TelemetryHandler(ITelemetryStore store) : IRabbitMqHandler
+{
+    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
+        => store.WriteAsync(context.Properties.ContentType, context.Body, cancellationToken);
+}
+
+rabbit.AddSubscriber<TelemetryHandler>("Messaging:Telemetry");
+```
+
+Raw handlers are registered with the same `AddSubscriber<THandler>`. They need no JSON contract and no source
+generator, and every body reaches them, including bodies that are not valid JSON. A class implements either
+`IRabbitMqHandler` or `IRabbitMqHandler<T>`, not both (`KPRMQ006`).
+
+**3. Publish raw bytes: inject `IRabbitMqPublisher`.** The non-generic publisher sends a body you have already
+serialized, as given:
+
+```csharp
+rabbit.AddPublisher(options => { options.Exchange = "telemetry"; options.RoutingKey = "reading"; });
+
+public sealed class TelemetrySender(IRabbitMqPublisher publisher)
+{
+    public Task SendAsync(Reading reading, CancellationToken cancellationToken)
+        => publisher.PublishAsync(reading.ToByteArray(), "reading", "application/x-protobuf", headers: null, cancellationToken);
+}
+```
+
+It takes a `ReadOnlyMemory<byte>`, which a `byte[]` converts to implicitly. The content type defaults to
+`application/octet-stream`. Options and confirms work as for typed publishers, and there is one raw publisher.
+
+**`Body` is RabbitMQ.Client's own buffer.** It is valid until `HandleAsync` completes, including across `await`s,
+and is reused afterwards, so reading it costs no copy. Never keep it beyond the handler, for example in background
+work; copy it with `context.Body.ToArray()` instead.
 
 ---
 

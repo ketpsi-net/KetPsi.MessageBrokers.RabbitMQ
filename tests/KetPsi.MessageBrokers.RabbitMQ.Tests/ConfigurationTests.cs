@@ -85,6 +85,26 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
+    public void A_raw_handler_registers_a_raw_consumer_without_any_JSON_contract()
+    {
+        var builder = TestHosts.CreateBuilder(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:RabbitMq"] = "amqp://localhost:5672/",
+            ["Messaging:Raw:Queue"] = "raw",
+        });
+        builder.Services.AddRabbitMq(rabbit => rabbit.AddSubscriber<RawRecordingHandler>("Messaging:Raw"));
+        builder.Services.Configure<RabbitMqJsonOptions>(options => options.ReflectionEnabled = false);
+        using var host = builder.Build();
+
+        var consumer = Assert.Single(host.Services.GetServices<IRabbitMqConsumer>());
+
+        Assert.IsType<RabbitMqRawConsumer<RawRecordingHandler>>(consumer);
+        Assert.Equal("raw", consumer.Queue);
+        // No message type was registered, so there is nothing for the JSON check to fail on.
+        _ = host.Services.GetRequiredService<IOptions<RabbitMqJsonOptions>>().Value;
+    }
+
+    [Fact]
     public async Task Host_start_fails_when_a_subscriber_has_no_queue()
     {
         var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));
@@ -110,6 +130,28 @@ public sealed class ConfigurationTests
         var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("no Exchange configured", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Host_start_fails_when_the_raw_publisher_has_no_exchange()
+    {
+        var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));
+        builder.Services.AddRabbitMq(rabbit => rabbit.AddPublisher(options => options.RoutingKey = "key"));
+        using var host = builder.Build();
+
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("raw RabbitMQ publisher has no Exchange", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_second_raw_publisher_throws()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<InvalidOperationException>(() => services.AddRabbitMq(rabbit => rabbit
+            .AddPublisher(options => options.Exchange = "a")
+            .AddPublisher(options => options.Exchange = "b")));
     }
 
     [Fact]

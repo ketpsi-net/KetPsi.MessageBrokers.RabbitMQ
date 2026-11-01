@@ -35,14 +35,30 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
         return this;
     }
 
-    // The source generator intercepts these calls and calls AddSubscriber<THandler, TMessage> with the inferred message type.
-    public IRabbitMqConfigBuilder AddSubscriber<THandler>(Action<RabbitMqSubscriberOptions> configure)
+    // For typed handlers the source generator intercepts these calls and calls AddSubscriber<THandler, TMessage> with the
+    // inferred message type, so only raw handlers get here.
+    public IRabbitMqConfigBuilder AddSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(Action<RabbitMqSubscriberOptions> configure)
         where THandler : class
-        => throw new InvalidOperationException(NotInterceptedMessage<THandler>());
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        EnsureRawHandler<THandler>();
+        var name = NewOptionsName();
+        AddSubscriberOptions<THandler>(name).Configure(configure);
+        RegisterRawSubscriber<THandler>(name);
+        return this;
+    }
 
-    public IRabbitMqConfigBuilder AddSubscriber<THandler>(string configSectionPath)
+    public IRabbitMqConfigBuilder AddSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(string configSectionPath)
         where THandler : class
-        => throw new InvalidOperationException(NotInterceptedMessage<THandler>());
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configSectionPath);
+        EnsureRawHandler<THandler>();
+        var name = NewOptionsName();
+        AddSubscriberOptions<THandler>(name)
+            .Configure<IConfiguration>((options, configuration) => configuration.GetSection(configSectionPath).Bind(options));
+        RegisterRawSubscriber<THandler>(name);
+        return this;
+    }
 
     public IRabbitMqConfigBuilder AddSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TMessage>(
         Action<RabbitMqSubscriberOptions> configure)
@@ -67,11 +83,30 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
         return this;
     }
 
+    public IRabbitMqConfigBuilder AddPublisher(Action<RabbitMqPublisherOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var name = NewOptionsName();
+        AddPublisherOptions(name, MissingRawExchangeMessage).Configure(configure);
+        RegisterRawPublisher(name);
+        return this;
+    }
+
+    public IRabbitMqConfigBuilder AddPublisher(string configSectionPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(configSectionPath);
+        var name = NewOptionsName();
+        AddPublisherOptions(name, MissingRawExchangeMessage)
+            .Configure<IConfiguration>((options, configuration) => configuration.GetSection(configSectionPath).Bind(options));
+        RegisterRawPublisher(name);
+        return this;
+    }
+
     public IRabbitMqConfigBuilder AddPublisher<TMessage>(Action<RabbitMqPublisherOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         var name = NewOptionsName();
-        AddPublisherOptions<TMessage>(name).Configure(configure);
+        AddPublisherOptions(name, MissingExchangeMessage<TMessage>()).Configure(configure);
         RegisterPublisher<TMessage>(name);
         return this;
     }
@@ -80,7 +115,7 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configSectionPath);
         var name = NewOptionsName();
-        AddPublisherOptions<TMessage>(name)
+        AddPublisherOptions(name, MissingExchangeMessage<TMessage>())
             .Configure<IConfiguration>((options, configuration) => configuration.GetSection(configSectionPath).Bind(options));
         RegisterPublisher<TMessage>(name);
         return this;
@@ -93,10 +128,40 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
             .Validate(options => !string.IsNullOrWhiteSpace(options.Queue), MissingQueueMessage<THandler>())
             .ValidateOnStart();
 
-    private OptionsBuilder<RabbitMqPublisherOptions> AddPublisherOptions<TMessage>(string name)
+    private OptionsBuilder<RabbitMqPublisherOptions> AddPublisherOptions(string name, string missingExchangeMessage)
         => services.AddOptions<RabbitMqPublisherOptions>(name)
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Exchange), MissingExchangeMessage<TMessage>())
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Exchange), missingExchangeMessage)
             .ValidateOnStart();
+
+    /// <summary>Throws unless <typeparamref name="THandler"/> is a raw handler; typed handlers need the generator.</summary>
+    private static void EnsureRawHandler<THandler>()
+    {
+        if (!typeof(IRabbitMqHandler).IsAssignableFrom(typeof(THandler)))
+        {
+            throw new InvalidOperationException(NotInterceptedMessage<THandler>());
+        }
+    }
+
+    private void RegisterRawSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(string name)
+        where THandler : class
+    {
+        services.TryAddScoped<THandler>();
+
+        services.AddSingleton<IRabbitMqConsumer>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptionsMonitor<RabbitMqSubscriberOptions>>().Get(name);
+            if (string.IsNullOrWhiteSpace(options.Queue))
+            {
+                throw new InvalidOperationException(MissingQueueMessage<THandler>());
+            }
+
+            return new RabbitMqRawConsumer<THandler>(
+                serviceProvider.GetRequiredService<RabbitMqConnectionProvider>(),
+                serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+                options,
+                serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<RabbitMqRawConsumer<THandler>>());
+        });
+    }
 
     private void RegisterSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TMessage>(
         string name)
@@ -122,6 +187,28 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
                 options,
                 typeInfo,
                 logger);
+        });
+    }
+
+    private void RegisterRawPublisher(string name)
+    {
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(IRabbitMqPublisher)))
+        {
+            throw new InvalidOperationException("A raw RabbitMQ publisher is already registered. Register one raw publisher.");
+        }
+
+        services.AddSingleton<IRabbitMqPublisher>(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptionsMonitor<RabbitMqPublisherOptions>>().Get(name);
+            if (string.IsNullOrWhiteSpace(options.Exchange))
+            {
+                throw new InvalidOperationException(MissingRawExchangeMessage);
+            }
+
+            return new RabbitMqRawPublisher(
+                serviceProvider.GetRequiredService<RabbitMqConnectionProvider>(),
+                options,
+                serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<RabbitMqRawPublisher>());
         });
     }
 
@@ -167,10 +254,13 @@ internal sealed class RabbitMqConfigBuilder(IServiceCollection services) : IRabb
     private static string NotInterceptedMessage<THandler>()
         => $"AddSubscriber<{typeof(THandler).Name}> was not rewritten by the KetPsi.MessageBrokers.RabbitMQ source generator, "
             + "which infers the message type from IRabbitMqHandler<T>. Reference the package so its generator runs, "
-            + $"or call AddSubscriber<{typeof(THandler).Name}, TMessage> instead.";
+            + $"or call AddSubscriber<{typeof(THandler).Name}, TMessage> instead. A handler of raw messages implements "
+            + "IRabbitMqHandler and needs no generator.";
 
     private static string MissingQueueMessage<THandler>()
         => $"The RabbitMQ subscriber for handler '{typeof(THandler).FullName}' has no Queue configured.";
+
+    private const string MissingRawExchangeMessage = "The raw RabbitMQ publisher has no Exchange configured.";
 
     private static string MissingExchangeMessage<TMessage>()
         => $"The RabbitMQ publisher for '{typeof(TMessage).FullName}' has no Exchange configured.";

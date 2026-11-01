@@ -115,6 +115,106 @@ public sealed class BrokerIntegrationTests(RabbitMqFixture broker)
     }
 
     [Fact]
+    public async Task A_raw_handler_receives_any_body_unchanged()
+    {
+        var topology = TestTopology.Create();
+        using var host = TestHosts.CreateConnected(broker, rabbit => rabbit
+            .AddSubscriber<RawRecordingHandler>(options => options.Queue = topology.Queue));
+        await host.StartAsync(CancellationToken);
+
+        // Not JSON: a typed handler would reject it, a raw handler gets the bytes as published.
+        var body = Encoding.UTF8.GetBytes("{not json, just text");
+        await using (var channel = await broker.CreateChannelAsync(CancellationToken))
+        {
+            var properties = new BasicProperties { ContentType = "text/plain" };
+            await channel.BasicPublishAsync(string.Empty, topology.Queue, mandatory: false, properties, body, CancellationToken);
+        }
+
+        var received = await host.Services.GetRequiredService<RawMessageRecorder>().NextAsync(CancellationToken);
+
+        Assert.Equal(body, received.Body);
+        Assert.Equal("text/plain", received.ContentType);
+        Assert.Equal(topology.Queue, received.RoutingKey);
+        await host.StopAsync(CancellationToken);
+    }
+
+    [Fact]
+    public async Task The_raw_publisher_sends_the_body_and_content_type_as_given()
+    {
+        var topology = TestTopology.Create();
+        using var host = TestHosts.CreateConnected(broker, rabbit => rabbit
+            .AddSubscriber<RawRecordingHandler>(options => Bind(options, topology))
+            .AddPublisher(options => Target(options, topology)));
+        await host.StartAsync(CancellationToken);
+
+        var publisher = host.Services.GetRequiredService<IRabbitMqPublisher>();
+        var recorder = host.Services.GetRequiredService<RawMessageRecorder>();
+        byte[] protobufLike = [0x08, 0x96, 0x01];
+
+        await publisher.PublishAsync(protobufLike, topology.RoutingKey, "application/x-protobuf", headers: null, CancellationToken);
+        var explicitType = await recorder.NextAsync(CancellationToken);
+        await publisher.PublishAsync(protobufLike, CancellationToken);
+        var defaultType = await recorder.NextAsync(CancellationToken);
+
+        Assert.Equal(protobufLike, explicitType.Body);
+        Assert.Equal("application/x-protobuf", explicitType.ContentType);
+        Assert.Equal(protobufLike, defaultType.Body);
+        Assert.Equal("application/octet-stream", defaultType.ContentType);
+        await host.StopAsync(CancellationToken);
+    }
+
+    [Fact]
+    public async Task Json_published_raw_reaches_a_typed_handler()
+    {
+        var topology = TestTopology.Create();
+        using var host = TestHosts.CreateConnected(broker, rabbit => rabbit
+            .AddSubscriber<RecordingHandler>(options => Bind(options, topology))
+            .AddPublisher(options => Target(options, topology)));
+        await host.StartAsync(CancellationToken);
+
+        var body = JsonSerializer.SerializeToUtf8Bytes(new TestMessage("raw-json"), TestJsonContext.Default.TestMessage);
+        await host.Services.GetRequiredService<IRabbitMqPublisher>()
+            .PublishAsync(body, topology.RoutingKey, "application/json", headers: null, CancellationToken);
+        var received = await host.Services.GetRequiredService<MessageRecorder>().NextAsync(CancellationToken);
+
+        Assert.Equal("raw-json", received.Id);
+        await host.StopAsync(CancellationToken);
+    }
+
+    [Fact]
+    public async Task A_typed_handler_can_read_the_raw_body_after_awaiting()
+    {
+        var topology = TestTopology.Create();
+        using var host = TestHosts.CreateConnected(broker, rabbit => rabbit
+            .AddSubscriber<DelayedBodyHandler>(options =>
+            {
+                Bind(options, topology);
+                options.ConsumerDispatchConcurrency = 4;
+            })
+            .AddPublisher<TestMessage>(options => Target(options, topology)));
+        await host.StartAsync(CancellationToken);
+
+        // Several messages in flight at once, so a body buffer returned too early would be overwritten by another.
+        var publisher = host.Services.GetRequiredService<IRabbitMqPublisher<TestMessage>>();
+        var sent = Enumerable.Range(0, 8).Select(i => new TestMessage($"body-{i}")).ToArray();
+        foreach (var message in sent)
+        {
+            await publisher.PublishAsync(message, CancellationToken);
+        }
+
+        var recorder = host.Services.GetRequiredService<RawMessageRecorder>();
+        var received = new List<TestMessage>();
+        for (var i = 0; i < sent.Length; i++)
+        {
+            var raw = await recorder.NextAsync(CancellationToken);
+            received.Add(JsonSerializer.Deserialize(raw.Body, TestJsonContext.Default.TestMessage)!);
+        }
+
+        Assert.Equal(sent.Select(m => m.Id).Order(), received.Select(m => m.Id).Order());
+        await host.StopAsync(CancellationToken);
+    }
+
+    [Fact]
     public async Task Each_message_gets_its_own_scope()
     {
         var topology = TestTopology.Create();

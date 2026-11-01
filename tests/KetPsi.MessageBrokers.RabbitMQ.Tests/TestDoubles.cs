@@ -83,6 +83,42 @@ internal sealed class NoOpHandler : IRabbitMqHandler<TestMessage>
     public Task HandleAsync(MessageContext<TestMessage> context, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
+/// <summary>A copy of a delivery's raw body, taken inside the handler.</summary>
+internal sealed record RawRecordedMessage(byte[] Body, string? ContentType, string RoutingKey);
+
+internal sealed class RawMessageRecorder
+{
+    private readonly Channel<RawRecordedMessage> _messages = Channel.CreateUnbounded<RawRecordedMessage>();
+
+    public void Record(MessageContext context)
+        => _messages.Writer.TryWrite(new RawRecordedMessage(context.Body.ToArray(), context.Properties.ContentType, context.RoutingKey));
+
+    public async Task<RawRecordedMessage> NextAsync(CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
+        return await _messages.Reader.ReadAsync(timeout.Token);
+    }
+}
+
+internal sealed class RawRecordingHandler(RawMessageRecorder recorder) : IRabbitMqHandler
+{
+    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
+    {
+        recorder.Record(context);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Reads the raw body only after awaiting, to show it stays valid for the whole handler.</summary>
+internal sealed class DelayedBodyHandler(RawMessageRecorder recorder) : IRabbitMqHandler<TestMessage>
+{
+    public async Task HandleAsync(MessageContext<TestMessage> context, CancellationToken cancellationToken)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+        recorder.Record(context);
+    }
+}
 internal sealed class RecordingSettler : IMessageSettler
 {
     private int _acks;
