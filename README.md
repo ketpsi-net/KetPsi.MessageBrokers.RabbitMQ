@@ -136,14 +136,37 @@ rabbit.AddSubscriber<OrderPlacedHandler>("Messaging:OrderPlaced");   // bind the
 
 - The handler returns: the message is **acked**.
 - The handler throws: it is **nacked**, and requeued or not according to `RequeueOnError`.
-- The body is not valid JSON, or is `null`: it is **rejected without requeue**, so it is dead-lettered when a
-  dead-letter exchange is set.
+- The body is not valid JSON, or is `null` (typed handlers only): it is **rejected without requeue**, so it is
+  dead-lettered when a dead-letter exchange is set.
 - The host shuts down while the handler runs: the handler's token is canceled and the message is **requeued**.
 - The handler can also settle the message itself with `context.AckAsync()` or `context.NackAsync(requeue)`. A message
   is settled only once.
 
-`MessageContext<T>` also exposes `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and `Properties`, which
-includes the headers.
+`MessageContext<T>` also exposes the raw `Body` and `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and
+`Properties`, which includes the content type and headers.
+
+### Raw messages
+
+A handler that implements the non-generic `IRabbitMqHandler` gets the message as it arrived, with no deserialization.
+Use it for formats other than JSON (protobuf, Avro, text), to deserialize the body yourself, or to forward or archive
+messages unchanged:
+
+```csharp
+internal sealed class AuditHandler(IAuditLog audit) : IRabbitMqHandler
+{
+    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
+        => audit.WriteAsync(context.RoutingKey, context.Properties.ContentType, context.Body.ToArray(), cancellationToken);
+}
+
+rabbit.AddSubscriber<AuditHandler>("Messaging:Audit");
+```
+
+`MessageContext` is the base class of `MessageContext<T>`: it has the body, the delivery details and `AckAsync` /
+`NackAsync`, and `MessageContext<T>` only adds the deserialized `Message`. Raw handlers need no JSON contract and no
+source generator, and every body reaches them, including bodies that are not valid JSON.
+
+**`Body` is RabbitMQ.Client's own buffer.** It is valid until `HandleAsync` completes, including across `await`s, and
+is reused afterwards. Copy it with `context.Body.ToArray()` to keep it longer, for example in background work.
 
 **Startup and shutdown.** All consumers **start at the same time** with the host, so a slow queue declaration does not
 hold up the others. The first consumer that fails cancels the rest and **fails host startup**. On shutdown each
@@ -155,16 +178,18 @@ channel.
 `AddSubscriber<OrderPlacedHandler>` is rewritten at compile time into
 `AddSubscriber<OrderPlacedHandler, OrderPlaced>`, with the message type read from the `IRabbitMqHandler<T>` the handler
 implements. The rewrite uses C# interceptors and needs no reflection. The package enables the interceptors for you.
+Raw handlers have no message type to infer, so the generator leaves their calls alone.
 
 When a handler can't be registered this way, the build fails:
 
 | ID | Problem | Fix |
 |---|---|---|
-| `KPRMQ001` | The class implements no `IRabbitMqHandler<T>`. | Implement it. |
+| `KPRMQ001` | The class implements neither `IRabbitMqHandler<T>` nor `IRabbitMqHandler`. | Implement one of them. |
 | `KPRMQ002` | The class handles more than one message type. | Call `AddSubscriber<THandler, TMessage>` once per message type. |
 | `KPRMQ003` | The handler is a generic type parameter. | Call `AddSubscriber<THandler, TMessage>`. |
 | `KPRMQ004` | The handler is abstract or an interface. | Register a concrete class. |
 | `KPRMQ005` | The handler or message type is private or `file`-scoped. | Make it `internal` or `public`. |
+| `KPRMQ006` | The class implements both `IRabbitMqHandler` and `IRabbitMqHandler<T>`. | Keep one: raw or typed. |
 
 `AddSubscriber<THandler, TMessage>` can always be called directly.
 

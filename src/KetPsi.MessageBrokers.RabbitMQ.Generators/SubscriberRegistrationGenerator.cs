@@ -74,9 +74,12 @@ public sealed class SubscriberRegistrationGenerator : IIncrementalGenerator
         var handler = method.TypeArguments[0];
         var handlerName = handler.ToDisplayString();
 
+        // A raw handler (IRabbitMqHandler) has no message type to infer; the library registers it without the generator.
+        var isRawHandler = ImplementsRawHandler(handler);
+
         if (handler is not INamedTypeSymbol namedHandler || ContainsTypeParameter(handler))
         {
-            return Failure(SubscriberDiagnostics.OpenHandlerType, name, handlerName);
+            return isRawHandler ? null : Failure(SubscriberDiagnostics.OpenHandlerType, name, handlerName);
         }
 
         if (namedHandler.IsAbstract)
@@ -89,6 +92,13 @@ public sealed class SubscriberRegistrationGenerator : IIncrementalGenerator
             .Select(static type => type.TypeArguments[0])
             .Distinct<ITypeSymbol>(SymbolEqualityComparer.Default)
             .ToList();
+
+        if (isRawHandler)
+        {
+            return messageTypes.Count == 0
+                ? null
+                : Failure(SubscriberDiagnostics.RawAndTypedHandler, name, handlerName, string.Join(", ", messageTypes.Select(static type => type.ToDisplayString())));
+        }
 
         if (messageTypes.Count == 0)
         {
@@ -127,6 +137,14 @@ public sealed class SubscriberRegistrationGenerator : IIncrementalGenerator
 
     private static SubscriberCallResult Failure(DiagnosticDescriptor descriptor, SyntaxNode node, string argument0, string argument1 = "")
         => new(Call: null, DiagnosticInfo.Create(descriptor, node, argument0, argument1));
+
+    private static bool ImplementsRawHandler(ITypeSymbol type)
+        => type.AllInterfaces.Any(IsRawHandlerInterface)
+            || (type is ITypeParameterSymbol parameter
+                && parameter.ConstraintTypes.Any(constraint => IsRawHandlerInterface(constraint as INamedTypeSymbol) || constraint.AllInterfaces.Any(IsRawHandlerInterface)));
+
+    private static bool IsRawHandlerInterface(INamedTypeSymbol? type)
+        => IsLibraryType(type, HandlerInterfaceName) && type!.TypeArguments.Length == 0;
 
     private static bool IsLibraryType(INamedTypeSymbol? type, string name)
         => type is not null && type.Name == name && type.ContainingNamespace.ToDisplayString() == LibraryNamespace;

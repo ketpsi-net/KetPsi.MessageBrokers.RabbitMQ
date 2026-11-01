@@ -63,6 +63,51 @@ public sealed class SubscriberRegistrationGeneratorTests
     }
 
     [Fact]
+    public void A_raw_handler_is_left_to_the_library()
+    {
+        var result = Run(Usings + """
+            public sealed class AuditHandler : IRabbitMqHandler
+            {
+                public Task HandleAsync(MessageContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+            }
+
+            public static class Registration
+            {
+                public static void Register(IRabbitMqConfigBuilder rabbit) => rabbit.AddSubscriber<AuditHandler>("Messaging:Audit");
+
+                public static void RegisterAny<THandler>(IRabbitMqConfigBuilder rabbit)
+                    where THandler : class, IRabbitMqHandler
+                    => rabbit.AddSubscriber<THandler>("Messaging:Audit");
+            }
+            """);
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(result.CompilationErrors);
+        Assert.Empty(result.GeneratedSources);
+    }
+
+    [Fact]
+    public void A_handler_of_raw_and_typed_messages_is_reported()
+    {
+        var result = Run(Usings + OrderHandler + """
+            public sealed class MixedHandler : IRabbitMqHandler, IRabbitMqHandler<Order>
+            {
+                public Task HandleAsync(MessageContext context, CancellationToken cancellationToken) => Task.CompletedTask;
+
+                public Task HandleAsync(MessageContext<Order> context, CancellationToken cancellationToken) => Task.CompletedTask;
+            }
+
+            public static class Registration
+            {
+                public static void Register(IRabbitMqConfigBuilder rabbit) => rabbit.AddSubscriber<MixedHandler>("Messaging:Orders");
+            }
+            """);
+
+        var diagnostic = AssertSingleDiagnostic(result, "KPRMQ006");
+        Assert.Contains("IRabbitMqHandler<Order>", diagnostic.GetMessage(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_handler_without_a_handler_interface_is_reported()
     {
         var result = Run(Usings + """

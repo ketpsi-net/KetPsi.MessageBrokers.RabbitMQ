@@ -75,6 +75,32 @@ public sealed class MessageContextTests
     public void A_new_context_is_not_settled()
         => Assert.False(CreateContext().IsSettled);
 
+    [Fact]
+    public async Task A_typed_context_is_a_raw_context_with_the_same_body_and_settling()
+    {
+        MessageContext context = CreateContext();
+
+        await context.AckAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(s_body, context.Body.ToArray());
+        Assert.Equal("m", Assert.IsType<MessageContext<TestMessage>>(context).Message.Id);
+        Assert.Equal(1, _settler.Acks);
+    }
+
+    [Fact]
+    public void A_raw_context_exposes_the_body_and_delivery_details()
+    {
+        var context = new MessageContext(_settler, s_body, deliveryTag: 9, redelivered: true, "exchange", "key", new BasicProperties());
+
+        Assert.Equal(s_body, context.Body.ToArray());
+        Assert.Equal(9UL, context.DeliveryTag);
+        Assert.True(context.Redelivered);
+        Assert.Equal("exchange", context.Exchange);
+        Assert.Equal("key", context.RoutingKey);
+    }
+
+    private static readonly byte[] s_body = """{"id":"m"}"""u8.ToArray();
+
     private MessageContext<TestMessage> CreateContext()
-        => new(new TestMessage("m"), _settler, deliveryTag: 7, redelivered: false, "exchange", "key", new BasicProperties());
+        => new(new TestMessage("m"), _settler, s_body, deliveryTag: 7, redelivered: false, "exchange", "key", new BasicProperties());
 }

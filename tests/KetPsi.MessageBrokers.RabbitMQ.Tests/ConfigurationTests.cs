@@ -85,6 +85,26 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
+    public void A_raw_handler_registers_a_raw_consumer_without_any_JSON_contract()
+    {
+        var builder = TestHosts.CreateBuilder(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:RabbitMq"] = "amqp://localhost:5672/",
+            ["Messaging:Raw:Queue"] = "raw",
+        });
+        builder.Services.AddRabbitMq(rabbit => rabbit.AddSubscriber<RawRecordingHandler>("Messaging:Raw"));
+        builder.Services.Configure<RabbitMqJsonOptions>(options => options.ReflectionEnabled = false);
+        using var host = builder.Build();
+
+        var consumer = Assert.Single(host.Services.GetServices<IRabbitMqConsumer>());
+
+        Assert.IsType<RabbitMqRawConsumer<RawRecordingHandler>>(consumer);
+        Assert.Equal("raw", consumer.Queue);
+        // No message type was registered, so there is nothing for the JSON check to fail on.
+        _ = host.Services.GetRequiredService<IOptions<RabbitMqJsonOptions>>().Value;
+    }
+
+    [Fact]
     public async Task Host_start_fails_when_a_subscriber_has_no_queue()
     {
         var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));

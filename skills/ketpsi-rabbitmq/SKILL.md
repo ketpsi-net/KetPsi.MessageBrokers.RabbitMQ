@@ -1,6 +1,6 @@
 ---
 name: ketpsi-rabbitmq
-description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> subscribers, IRabbitMqPublisher<T> publishers, the ConnectionStrings:RabbitMq connection string, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher or MessageContext, when fixing KPRMQ001–KPRMQ005 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
+description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> publishers, the ConnectionStrings:RabbitMq connection string, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
 ---
 
 # Using KetPsi.MessageBrokers.RabbitMQ
@@ -113,13 +113,31 @@ internal sealed class OrderPlacedHandler(IBillingService billing) : IRabbitMqHan
 |---|---|
 | Handler returns | ack |
 | Handler throws | nack; requeued when `RequeueOnError` is true (the default) |
-| Body is invalid JSON or `null` | reject without requeue (dead-lettered if a dead-letter exchange is set) |
+| Body is invalid JSON or `null` (typed handlers only) | reject without requeue (dead-lettered if a dead-letter exchange is set) |
 | Host shuts down mid-handler | nack with requeue |
 
 - To settle early or differently, call `context.AckAsync()` or `context.NackAsync(requeue)`. A message is settled
   at most once, so the automatic settle then does nothing.
-- `MessageContext<T>` also has `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and `Properties`, which
-  includes the headers. The raw body is not exposed.
+- `MessageContext<T>` also has the raw `Body`, `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and
+  `Properties`, which includes the content type and headers.
+
+**Raw messages.** For non-JSON payloads, or to read the bytes yourself, implement the non-generic
+`IRabbitMqHandler`. It receives `MessageContext`, the base class of `MessageContext<T>`, without `Message`:
+
+```csharp
+internal sealed class AuditHandler(IAuditLog audit) : IRabbitMqHandler
+{
+    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
+        => audit.WriteAsync(context.RoutingKey, context.Properties.ContentType, context.Body.ToArray(), cancellationToken);
+}
+
+rabbit.AddSubscriber<AuditHandler>("Messaging:Audit");
+```
+
+- Raw handlers need no JSON contract and no generator, and receive every body, including invalid JSON.
+- A class must implement either `IRabbitMqHandler` or `IRabbitMqHandler<T>`, not both (KPRMQ006).
+- **`Body` is only valid until `HandleAsync` completes**, across `await`s too; RabbitMQ.Client reuses the buffer
+  afterwards. Never store it or use it from background work; copy it with `context.Body.ToArray()` instead.
 
 **Poison messages.** With the default `RequeueOnError = true`, a message that always fails is redelivered forever. For
 anything non-trivial, set:
@@ -193,11 +211,12 @@ Contracts are looked up in this order:
 
 | Id | Meaning | Fix |
 |---|---|---|
-| KPRMQ001 | The class implements no `IRabbitMqHandler<T>` | Implement `IRabbitMqHandler<TMessage>` |
+| KPRMQ001 | The class implements neither `IRabbitMqHandler<T>` nor `IRabbitMqHandler` | Implement `IRabbitMqHandler<TMessage>`, or `IRabbitMqHandler` for raw messages |
 | KPRMQ002 | The class implements `IRabbitMqHandler<T>` more than once | Call `AddSubscriber<THandler, TMessage>` once per message type |
 | KPRMQ003 | The handler is a generic type parameter | Call `AddSubscriber<THandler, TMessage>` |
 | KPRMQ004 | The handler is abstract or an interface | Register a concrete class |
 | KPRMQ005 | The handler or message type is private, nested in a private type, or `file`-scoped | Make it `internal` or `public` |
+| KPRMQ006 | The class implements both `IRabbitMqHandler` and `IRabbitMqHandler<T>` | Keep one: raw or typed |
 
 A runtime `InvalidOperationException` saying `AddSubscriber<...> was not rewritten by the ... source generator` means
 the generator did not run. Check the SDK version and the interceptor namespace setting, or call
@@ -213,8 +232,8 @@ the generator did not run. Check the SDK version and the interceptor namespace s
 
 ## Testing
 
-- Unit-test handlers directly; they are plain classes. `MessageContext<T>` has no public constructor, so put the
-  logic in a method that takes the message, and call it from `HandleAsync`.
+- Unit-test handlers directly; they are plain classes. `MessageContext` and `MessageContext<T>` have no public
+  constructor, so put the logic in a method that takes the message or bytes, and call it from `HandleAsync`.
 - Mock `IRabbitMqPublisher<T>` in services that publish.
 - For integration tests, run a broker with `Testcontainers.RabbitMq`, and point the app at it with
   `ConfigureConnection(o => o.ConnectionString = container.GetConnectionString())`. Give each test unique

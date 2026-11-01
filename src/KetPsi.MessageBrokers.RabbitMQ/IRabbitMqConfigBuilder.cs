@@ -34,23 +34,38 @@ public interface IRabbitMqConfigBuilder
     IRabbitMqConfigBuilder ConfigureJsonSerializer(Action<JsonSerializerOptions> configure);
 
     /// <summary>
-    /// Registers <typeparamref name="THandler"/> as a scoped handler for messages from a queue. The message type is the
-    /// <c>T</c> of the <see cref="IRabbitMqHandler{T}"/> it implements; the package's source generator fills it in at compile time.
+    /// Registers <typeparamref name="THandler"/> as a scoped handler for messages from a queue.
+    /// <list type="bullet">
+    /// <item>A handler implementing <see cref="IRabbitMqHandler{T}"/> gets each message deserialized to <c>T</c>. The
+    /// package's source generator fills in <c>T</c> at compile time.</item>
+    /// <item>A handler implementing <see cref="IRabbitMqHandler"/> gets the raw body, with no deserialization and no JSON
+    /// contract needed.</item>
+    /// </list>
     /// </summary>
-    /// <typeparam name="THandler">The handler, created by DI per message. Must implement exactly one <see cref="IRabbitMqHandler{T}"/>.</typeparam>
+    /// <typeparam name="THandler">
+    /// The handler, created by DI per message. Implements <see cref="IRabbitMqHandler"/>, or exactly one
+    /// <see cref="IRabbitMqHandler{T}"/>.
+    /// </typeparam>
     /// <param name="configure">Sets the subscriber options; <see cref="RabbitMqSubscriberOptions.Queue"/> is required.</param>
-    /// <exception cref="InvalidOperationException">The source generator did not run.</exception>
-    IRabbitMqConfigBuilder AddSubscriber<THandler>(Action<RabbitMqSubscriberOptions> configure)
+    /// <exception cref="InvalidOperationException">
+    /// <typeparamref name="THandler"/> implements only <see cref="IRabbitMqHandler{T}"/> and the source generator did not run.
+    /// </exception>
+    IRabbitMqConfigBuilder AddSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(Action<RabbitMqSubscriberOptions> configure)
         where THandler : class;
 
     /// <summary>
-    /// Registers <typeparamref name="THandler"/> with options bound from a configuration section. The message type is
-    /// inferred as in <see cref="AddSubscriber{THandler}(Action{RabbitMqSubscriberOptions})"/>.
+    /// Registers <typeparamref name="THandler"/> with options bound from a configuration section. Raw and typed
+    /// handlers work as in <see cref="AddSubscriber{THandler}(Action{RabbitMqSubscriberOptions})"/>.
     /// </summary>
-    /// <typeparam name="THandler">The handler, created by DI per message. Must implement exactly one <see cref="IRabbitMqHandler{T}"/>.</typeparam>
+    /// <typeparam name="THandler">
+    /// The handler, created by DI per message. Implements <see cref="IRabbitMqHandler"/>, or exactly one
+    /// <see cref="IRabbitMqHandler{T}"/>.
+    /// </typeparam>
     /// <param name="configSectionPath">The section holding <see cref="RabbitMqSubscriberOptions"/>, e.g. <c>Messaging:Orders</c>.</param>
-    /// <exception cref="InvalidOperationException">The source generator did not run.</exception>
-    IRabbitMqConfigBuilder AddSubscriber<THandler>(string configSectionPath)
+    /// <exception cref="InvalidOperationException">
+    /// <typeparamref name="THandler"/> implements only <see cref="IRabbitMqHandler{T}"/> and the source generator did not run.
+    /// </exception>
+    IRabbitMqConfigBuilder AddSubscriber<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(string configSectionPath)
         where THandler : class;
 
     /// <summary>
