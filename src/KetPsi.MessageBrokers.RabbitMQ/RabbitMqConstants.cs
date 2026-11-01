@@ -14,6 +14,9 @@ internal static class RabbitMqQueueArguments
 internal static class RabbitMqContentTypes
 {
     public const string Json = "application/json";
+
+    /// <summary>The content type of raw publishes that do not name one.</summary>
+    public const string OctetStream = "application/octet-stream";
 }
 
 internal static class RabbitMqDefaults

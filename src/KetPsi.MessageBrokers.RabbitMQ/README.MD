@@ -6,7 +6,8 @@ regular JIT app. Targets `net8.0`, `net9.0` and `net10.0`.
 - **Subscribers** are plain handler classes, resolved from a new DI scope for every message, then acked, nacked or
   dead-lettered for you. `IRabbitMqHandler<T>` gets the deserialized message and its raw body; `IRabbitMqHandler`
   gets only the raw body, for non-JSON payloads.
-- **Publishers** are typed per message: `IRabbitMqPublisher<OrderPlaced>`, with publisher confirms by default.
+- **Publishers** are typed per message: `IRabbitMqPublisher<OrderPlaced>`, with publisher confirms by default. The
+  non-generic `IRabbitMqPublisher` sends bytes you have serialized yourself.
 - **No reflection in registration**: a bundled source generator reads each handler's message type at compile time.
 - **JSON** comes from source-generated contexts, from the builder or from DI, with a reflection fallback only where
   reflection is available.

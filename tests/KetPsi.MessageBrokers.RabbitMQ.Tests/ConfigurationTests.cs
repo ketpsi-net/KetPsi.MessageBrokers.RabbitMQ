@@ -133,6 +133,28 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
+    public async Task Host_start_fails_when_the_raw_publisher_has_no_exchange()
+    {
+        var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));
+        builder.Services.AddRabbitMq(rabbit => rabbit.AddPublisher(options => options.RoutingKey = "key"));
+        using var host = builder.Build();
+
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("raw RabbitMQ publisher has no Exchange", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_second_raw_publisher_throws()
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<InvalidOperationException>(() => services.AddRabbitMq(rabbit => rabbit
+            .AddPublisher(options => options.Exchange = "a")
+            .AddPublisher(options => options.Exchange = "b")));
+    }
+
+    [Fact]
     public void A_second_publisher_for_the_same_message_type_throws()
     {
         var services = new ServiceCollection();

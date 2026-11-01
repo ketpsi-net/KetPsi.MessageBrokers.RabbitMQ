@@ -1,6 +1,6 @@
 ---
 name: ketpsi-rabbitmq
-description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> publishers, the ConnectionStrings:RabbitMq connection string, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
+description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> and raw IRabbitMqPublisher publishers, reading the raw message body, the ConnectionStrings:RabbitMq connection string, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
 ---
 
 # Using KetPsi.MessageBrokers.RabbitMQ
@@ -119,25 +119,7 @@ internal sealed class OrderPlacedHandler(IBillingService billing) : IRabbitMqHan
 - To settle early or differently, call `context.AckAsync()` or `context.NackAsync(requeue)`. A message is settled
   at most once, so the automatic settle then does nothing.
 - `MessageContext<T>` also has the raw `Body`, `Redelivered`, `Exchange`, `RoutingKey`, `DeliveryTag` and
-  `Properties`, which includes the content type and headers.
-
-**Raw messages.** For non-JSON payloads, or to read the bytes yourself, implement the non-generic
-`IRabbitMqHandler`. It receives `MessageContext`, the base class of `MessageContext<T>`, without `Message`:
-
-```csharp
-internal sealed class AuditHandler(IAuditLog audit) : IRabbitMqHandler
-{
-    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
-        => audit.WriteAsync(context.RoutingKey, context.Properties.ContentType, context.Body.ToArray(), cancellationToken);
-}
-
-rabbit.AddSubscriber<AuditHandler>("Messaging:Audit");
-```
-
-- Raw handlers need no JSON contract and no generator, and receive every body, including invalid JSON.
-- A class must implement either `IRabbitMqHandler` or `IRabbitMqHandler<T>`, not both (KPRMQ006).
-- **`Body` is only valid until `HandleAsync` completes**, across `await`s too; RabbitMQ.Client reuses the buffer
-  afterwards. Never store it or use it from background work; copy it with `context.Body.ToArray()` instead.
+  `Properties`, which includes the content type and headers. See "Raw bytes" below for raw handlers.
 
 **Poison messages.** With the default `RequeueOnError = true`, a message that always fails is redelivered forever. For
 anything non-trivial, set:
@@ -171,6 +153,65 @@ public sealed class CheckoutService(IRabbitMqPublisher<OrderPlaced> publisher)
 - The publisher's `Queue` option declares and binds a queue, so messages are kept before any subscriber starts. Leave
   it empty when a subscriber declares the same queue with a `DeadLetterExchange`: the declarations would differ and
   the broker rejects the second one.
+- To publish bytes serialized some other way, use the raw `IRabbitMqPublisher` (see "Raw bytes").
+
+## Raw bytes
+
+When the user needs the bytes on the wire, pick one of these three.
+
+**1. Read the raw body in a typed handler.** `MessageContext<T>` derives from `MessageContext`, so every handler has
+the body exactly as it was published, next to the deserialized `Message`. Use it to log, archive, verify a signature
+or forward the original bytes:
+
+```csharp
+internal sealed class OrderPlacedHandler(IArchive archive) : IRabbitMqHandler<OrderPlaced>
+{
+    public async Task HandleAsync(MessageContext<OrderPlaced> context, CancellationToken cancellationToken)
+    {
+        await archive.SaveAsync(context.Message.OrderId, context.Body.ToArray(), cancellationToken);
+        // ... handle context.Message
+    }
+}
+```
+
+**2. Receive raw messages: implement `IRabbitMqHandler`.** The non-generic handler gets `MessageContext`, without
+`Message`, and nothing is deserialized. Use it for formats other than JSON (protobuf, Avro, text), or to deserialize
+the body yourself:
+
+```csharp
+internal sealed class TelemetryHandler(ITelemetryStore store) : IRabbitMqHandler
+{
+    public Task HandleAsync(MessageContext context, CancellationToken cancellationToken)
+        => store.WriteAsync(context.Properties.ContentType, context.Body, cancellationToken);
+}
+
+rabbit.AddSubscriber<TelemetryHandler>("Messaging:Telemetry");
+```
+
+Raw handlers are registered with the same `AddSubscriber<THandler>`. They need no JSON contract and no source
+generator, and every body reaches them, including bodies that are not valid JSON. A class implements either
+`IRabbitMqHandler` or `IRabbitMqHandler<T>`, not both (`KPRMQ006`).
+
+**3. Publish raw bytes: inject `IRabbitMqPublisher`.** The non-generic publisher sends a body you have already
+serialized, as given:
+
+```csharp
+rabbit.AddPublisher(options => { options.Exchange = "telemetry"; options.RoutingKey = "reading"; });
+
+public sealed class TelemetrySender(IRabbitMqPublisher publisher)
+{
+    public Task SendAsync(Reading reading, CancellationToken cancellationToken)
+        => publisher.PublishAsync(reading.ToByteArray(), "reading", "application/x-protobuf", headers: null, cancellationToken);
+}
+```
+
+It takes a `ReadOnlyMemory<byte>`, which a `byte[]` converts to implicitly. The content type defaults to
+`application/octet-stream`. Options and confirms work as for typed publishers, and there is one raw publisher.
+
+**`Body` is RabbitMQ.Client's own buffer.** It is valid until `HandleAsync` completes, including across `await`s,
+and is reused afterwards, so reading it costs no copy. Never keep it beyond the handler, for example in background
+work; copy it with `context.Body.ToArray()` instead.
+
 
 ## Message types and JSON
 

@@ -87,6 +87,17 @@ public interface IRabbitMqConfigBuilder
         string configSectionPath)
         where THandler : class, IRabbitMqHandler<TMessage>;
 
+    /// <summary>
+    /// Registers the singleton <see cref="IRabbitMqPublisher"/>, which publishes bodies you have already serialized.
+    /// There is one raw publisher.
+    /// </summary>
+    /// <param name="configure">Sets the publisher options; <see cref="RabbitMqPublisherOptions.Exchange"/> is required.</param>
+    IRabbitMqConfigBuilder AddPublisher(Action<RabbitMqPublisherOptions> configure);
+
+    /// <summary>Registers the singleton <see cref="IRabbitMqPublisher"/> with options bound from a configuration section.</summary>
+    /// <param name="configSectionPath">The section holding <see cref="RabbitMqPublisherOptions"/>.</param>
+    IRabbitMqConfigBuilder AddPublisher(string configSectionPath);
+
     /// <summary>Registers a singleton <see cref="IRabbitMqPublisher{TMessage}"/>. One publisher per message type.</summary>
     /// <typeparam name="TMessage">The message type.</typeparam>
     /// <param name="configure">Sets the publisher options; <see cref="RabbitMqPublisherOptions.Exchange"/> is required.</param>
