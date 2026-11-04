@@ -1,12 +1,12 @@
 <Project>
 	<PropertyGroup>
 		<Title>$(AssemblyName)</Title>
-		<Version>1.0.0-preview.1</Version>
+		<Version>1.0.0-preview.2</Version>
 		<Authors>KetPsi</Authors>
 		<PackageId>$(AssemblyName)</PackageId>
-		<PackageProjectUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</PackageProjectUrl>
+		<PackageProjectUrl>https://github.com/ketpsi-net/KetPsi.MessageBrokers.RabbitMQ</PackageProjectUrl>
 		<PackageReadmeFile>README.MD</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/ketpsi-net/KetPsi.RabbitMQ</RepositoryUrl>
+		<RepositoryUrl>https://github.com/ketpsi-net/KetPsi.MessageBrokers.RabbitMQ</RepositoryUrl>
 		<PackageIcon>icon.png</PackageIcon>
 		<Icon>icon.png</Icon>
 		<Copyright>Copyright © 2026 KetPsi</Copyright>
