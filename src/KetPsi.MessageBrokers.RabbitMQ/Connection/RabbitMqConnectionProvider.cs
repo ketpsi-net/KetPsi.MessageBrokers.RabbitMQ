@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using RabbitMQ.Client;
 
 namespace KetPsi.MessageBrokers.RabbitMQ;
@@ -37,6 +38,7 @@ internal sealed class RabbitMqConnectionProvider(
 
             var clientProvidedName = ResolveClientProvidedName(options.Value);
             var factory = CreateFactory(clientProvidedName);
+            logger.LogDebug($"Connecting to RabbitMQ as {clientProvidedName:@ClientProvidedName}:{factory.HostName:@RabbitMqHostName}");
             var created = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
             _connection = created;
             logger.LogInformation($"Connected to RabbitMQ as {clientProvidedName:@ClientProvidedName}");
