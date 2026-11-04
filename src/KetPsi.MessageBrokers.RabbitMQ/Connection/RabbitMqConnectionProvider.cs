@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 using RabbitMQ.Client;
 
 namespace KetPsi.MessageBrokers.RabbitMQ;
@@ -10,13 +11,13 @@ internal sealed class RabbitMqConnectionProvider(
     IOptions<RabbitMqOptions> options,
     IOptions<SslOption> sslOptions,
     ILogger<RabbitMqConnectionProvider> logger,
-    IHostEnvironment? hostEnvironment = null) : IAsyncDisposable
+    IHostEnvironment? hostEnvironment = null) : IRabbitMqConnectionProvider, IAsyncDisposable
 {
     private readonly SemaphoreSlim _lock = new(1, 1);
     private volatile IConnection? _connection;
     private bool _disposed;
 
-    public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken)
+    public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -37,6 +38,7 @@ internal sealed class RabbitMqConnectionProvider(
 
             var clientProvidedName = ResolveClientProvidedName(options.Value);
             var factory = CreateFactory(clientProvidedName);
+            logger.LogDebug($"Connecting to RabbitMQ as {clientProvidedName:@ClientProvidedName}:{factory.HostName:@RabbitMqHostName}");
             var created = await factory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
             _connection = created;
             logger.LogInformation($"Connected to RabbitMQ as {clientProvidedName:@ClientProvidedName}");
