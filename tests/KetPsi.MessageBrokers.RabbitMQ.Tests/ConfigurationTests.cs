@@ -133,6 +133,18 @@ public sealed class ConfigurationTests
     }
 
     [Fact]
+    public void The_connection_provider_is_the_one_the_library_uses()
+    {
+        var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));
+        builder.Services.AddRabbitMq(_ => { });
+        using var host = builder.Build();
+
+        Assert.Same(
+            host.Services.GetRequiredService<RabbitMqConnectionProvider>(),
+            host.Services.GetRequiredService<IRabbitMqConnectionProvider>());
+    }
+
+    [Fact]
     public async Task Host_start_fails_when_the_raw_publisher_has_no_exchange()
     {
         var builder = TestHosts.CreateBuilder(Connection("amqp://localhost:5672/"));

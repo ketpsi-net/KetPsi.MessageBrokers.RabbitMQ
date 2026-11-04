@@ -1,6 +1,6 @@
 ---
 name: ketpsi-rabbitmq
-description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> and raw IRabbitMqPublisher publishers, reading the raw message body, the ConnectionStrings:RabbitMq connection string, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
+description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> and raw IRabbitMqPublisher publishers, reading the raw message body, the ConnectionStrings:RabbitMq connection string, IRabbitMqConnectionProvider and health checks, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher, IRabbitMqConnectionProvider or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
 ---
 
 # Using KetPsi.MessageBrokers.RabbitMQ
@@ -94,6 +94,37 @@ rabbit.ConfigureConnection(options =>
 ```
 
 For client certificates, configure RabbitMQ.Client's `SslOption` with `services.Configure<SslOption>(...)`.
+
+**Health checks.** Inject `IRabbitMqConnectionProvider` to get the shared connection; never create a second
+`ConnectionFactory` connection for this.
+
+```csharp
+internal sealed class RabbitMqHealthCheck(IRabbitMqConnectionProvider connections) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var connection = await connections.GetConnectionAsync(cancellationToken);
+            return connection.IsOpen
+                ? HealthCheckResult.Healthy()
+                : HealthCheckResult.Unhealthy("The RabbitMQ connection is down; automatic recovery is retrying.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return HealthCheckResult.Unhealthy("Cannot connect to RabbitMQ.", exception);
+        }
+    }
+}
+
+builder.Services.AddHealthChecks().AddCheck<RabbitMqHealthCheck>("rabbitmq");
+```
+
+- `GetConnectionAsync` opens the connection on first use and throws when the broker is unreachable; report that as
+  unhealthy.
+- After a network failure the same connection reports `IsOpen == false` until automatic recovery reconnects.
+- Never close or dispose the returned connection; it is shared by every subscriber and publisher. Dispose only
+  channels you open on it yourself.
 
 ## Handlers
 

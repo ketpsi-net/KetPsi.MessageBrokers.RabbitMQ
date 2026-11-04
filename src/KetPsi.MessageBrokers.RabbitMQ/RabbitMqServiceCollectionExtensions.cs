@@ -54,6 +54,7 @@ public static class RabbitMqServiceCollectionExtensions
                 })
             .ValidateOnStart();
         services.TryAddSingleton<RabbitMqConnectionProvider>();
+        services.TryAddSingleton<IRabbitMqConnectionProvider>(static serviceProvider => serviceProvider.GetRequiredService<RabbitMqConnectionProvider>());
         services.AddHostedService<RabbitMqConsumerHostedService>();
     }
 }

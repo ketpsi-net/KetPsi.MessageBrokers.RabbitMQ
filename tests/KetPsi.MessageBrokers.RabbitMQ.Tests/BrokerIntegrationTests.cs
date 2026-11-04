@@ -115,6 +115,20 @@ public sealed class BrokerIntegrationTests(RabbitMqFixture broker)
     }
 
     [Fact]
+    public async Task The_connection_provider_returns_the_shared_open_connection()
+    {
+        using var host = TestHosts.CreateConnected(broker, _ => { });
+        await host.StartAsync(CancellationToken);
+        var provider = host.Services.GetRequiredService<IRabbitMqConnectionProvider>();
+
+        var connection = await provider.GetConnectionAsync(CancellationToken);
+
+        Assert.True(connection.IsOpen);
+        Assert.Same(connection, await provider.GetConnectionAsync(CancellationToken));
+        await host.StopAsync(CancellationToken);
+    }
+
+    [Fact]
     public async Task A_raw_handler_receives_any_body_unchanged()
     {
         var topology = TestTopology.Create();

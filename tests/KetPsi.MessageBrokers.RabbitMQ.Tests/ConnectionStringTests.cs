@@ -11,6 +11,8 @@ public sealed class ConnectionStringTests
     [InlineData("amqp://orders@broker/orders", false, "broker", 5672, "orders", null, "orders")]
     [InlineData("amqp://orders:secret@broker:5673/orders", false, "broker", 5673, "orders", "secret", "orders")]
     [InlineData("amqp://:secret@broker", false, "broker", 5672, null, "secret", "/")]
+    [InlineData("amqp://orders:p@ss@broker:5673/shop", false, "broker", 5673, "orders", "p@ss", "shop")]
+    [InlineData("amqp://orders:@@@broker", false, "broker", 5672, "orders", "@@", "/")]
     [InlineData("amqp://orders:p@ss:w/rd#1?@broker", false, "broker", 5672, "orders", "p@ss:w/rd#1?", "/")]
     [InlineData("amqp://u%40x:p%23w@broker/%2F", false, "broker", 5672, "u@x", "p#w", "/")]
     [InlineData("amqp://broker/prod%2Forders", false, "broker", 5672, null, null, "prod/orders")]

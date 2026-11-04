@@ -112,6 +112,36 @@ For client certificates or custom TLS settings, configure RabbitMQ.Client's `Ssl
 The connection uses automatic and topology recovery and is opened once, lazily, then shared by every subscriber and
 publisher.
 
+### Health checks
+
+Inject `IRabbitMqConnectionProvider` to reach that shared connection, for example in a health check:
+
+```csharp
+internal sealed class RabbitMqHealthCheck(IRabbitMqConnectionProvider connections) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var connection = await connections.GetConnectionAsync(cancellationToken);
+            return connection.IsOpen
+                ? HealthCheckResult.Healthy()
+                : HealthCheckResult.Unhealthy("The RabbitMQ connection is down; automatic recovery is retrying.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return HealthCheckResult.Unhealthy("Cannot connect to RabbitMQ.", exception);
+        }
+    }
+}
+
+builder.Services.AddHealthChecks().AddCheck<RabbitMqHealthCheck>("rabbitmq");
+```
+
+`GetConnectionAsync` opens the connection on first use and throws if the broker is unreachable. After a network
+failure it returns the same connection, whose `IsOpen` is false until automatic recovery reconnects. The connection
+belongs to the library: open your own channels on it if you need to, but never close or dispose the connection itself.
+
 ---
 
 ## Subscribers
