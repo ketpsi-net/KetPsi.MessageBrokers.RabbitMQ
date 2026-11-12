@@ -7,7 +7,7 @@
   <!-- RabbitMQ.Client 7.2.2 publishes with zero trim/AOT warnings even when the whole assembly is rooted. -->
   <ItemGroup>
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
-    <PackageVersion Include="KetPsi.Extensions.Logging.Abstractions" Version="2.0.1" />
+    <PackageVersion Include="KetPsi.Extensions.Logging.Abstractions" Version="3.0.0" />
   </ItemGroup>
 
   <!-- Framework-aligned packages: each target framework uses the latest patch of its own major version. -->
