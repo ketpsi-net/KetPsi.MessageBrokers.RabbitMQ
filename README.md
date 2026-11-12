@@ -1,7 +1,7 @@
 # KetPsi.MessageBrokers.RabbitMQ
 
 [![NuGet](https://img.shields.io/nuget/v/KetPsi.MessageBrokers.RabbitMQ.svg)](https://www.nuget.org/packages/KetPsi.MessageBrokers.RabbitMQ/)
-[![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-9.0%20%7C%2010.0%20%7C%2011.0-purple.svg?style=flat-square)](https://dotnet.microsoft.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 **KetPsi.MessageBrokers.RabbitMQ** is a publish/subscribe wrapper for [RabbitMQ.Client 7](https://github.com/rabbitmq/rabbitmq-dotnet-client)
@@ -305,7 +305,7 @@ app, such types simply fall back to reflection.
 ## Native AOT and trimming
 
 The library is marked `IsAotCompatible`. The sample in [`samples/AotSample`](samples/AotSample) is published with
-`PublishAot` for `net8.0`, `net9.0` and `net10.0` with **zero** trim and AOT warnings, then run against a real broker.
+`PublishAot` for `net9.0`, `net10.0` and `net11.0` with **zero** trim and AOT warnings, then run against a real broker.
 
 The library contains one warning suppression, in the reflection fallback, the same one ASP.NET Core's `JsonOptions`
 makes. That code runs only when `JsonSerializer.IsReflectionEnabledByDefault` is true. The SDK sets that switch to false
@@ -317,12 +317,12 @@ in every trimmed and Native AOT app, so the trimmer removes the code there.
 
 | Target | Microsoft.Extensions.* |
 |---|---|
-| `net8.0` | 8.0 |
 | `net9.0` | 9.0 |
 | `net10.0` | 10.0 |
+| `net11.0` | 11.0 |
 
-The bundled source generator needs a compiler with interceptor support: the **.NET 9.0.300 SDK or later**, also when
-targeting `net8.0`.
+The bundled source generator needs a compiler with interceptor support: the **.NET 9.0.300 SDK or later**.
+Targeting `net11.0` needs the .NET 11 SDK.
 
 ---
 

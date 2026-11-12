@@ -78,26 +78,9 @@ internal sealed class RabbitMqJsonOptions
             + "UseJsonContext, as a JsonSerializerContext service, or in the TypeInfoResolverChain of ConfigureJsonSerializer.";
 
     private static JsonTypeInfo<T>? FindTypeInfo<T>(JsonSerializerOptions options)
-    {
-        if (options.TypeInfoResolver is null)
-        {
-            return null;
-        }
-
-#if NET9_0_OR_GREATER
-        return options.TryGetTypeInfo(typeof(T), out var typeInfo) ? typeInfo as JsonTypeInfo<T> : null;
-#else
-        // .NET 8 has no TryGetTypeInfo; GetTypeInfo throws NotSupportedException when the resolver does not know the type.
-        try
-        {
-            return options.GetTypeInfo(typeof(T)) as JsonTypeInfo<T>;
-        }
-        catch (NotSupportedException)
-        {
-            return null;
-        }
-#endif
-    }
+        => options.TypeInfoResolver is not null && options.TryGetTypeInfo(typeof(T), out var typeInfo)
+            ? typeInfo as JsonTypeInfo<T>
+            : null;
 
     /// <summary>A copy of <paramref name="settings"/> that resolves contracts through reflection.</summary>
     /// <remarks>

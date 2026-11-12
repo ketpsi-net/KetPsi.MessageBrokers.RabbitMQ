@@ -1,6 +1,6 @@
 ---
 name: ketpsi-rabbitmq
-description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 8/9/10) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> and raw IRabbitMqPublisher publishers, reading the raw message body, the ConnectionStrings:RabbitMq connection string, IRabbitMqConnectionProvider and health checks, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher, IRabbitMqConnectionProvider or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
+description: How to use the KetPsi.MessageBrokers.RabbitMQ NuGet package (Native AOT compatible RabbitMQ publish/subscribe for .NET 9/10/11) — AddRabbitMq registration, IRabbitMqHandler<T> and raw IRabbitMqHandler subscribers, IRabbitMqPublisher<T> and raw IRabbitMqPublisher publishers, reading the raw message body, the ConnectionStrings:RabbitMq connection string, IRabbitMqConnectionProvider and health checks, JSON contracts for messages, ack/nack/dead-letter behavior, and Native AOT setup. Use when code references KetPsi.MessageBrokers.RabbitMQ, AddRabbitMq, AddSubscriber, AddPublisher, IRabbitMqHandler, IRabbitMqPublisher, IRabbitMqConnectionProvider or MessageContext, when fixing KPRMQ001–KPRMQ006 build errors, or when the user asks to publish or consume RabbitMQ messages in a project using this package.
 ---
 
 # Using KetPsi.MessageBrokers.RabbitMQ
@@ -17,8 +17,8 @@ All public types are in the `KetPsi.MessageBrokers.RabbitMQ` namespace.
 dotnet add package KetPsi.MessageBrokers.RabbitMQ --prerelease
 ```
 
-- Targets `net8.0`, `net9.0` and `net10.0`.
-- Requires the .NET 9.0.300 SDK or later to build, even when targeting `net8.0`, because the generator uses
+- Targets `net9.0`, `net10.0` and `net11.0`.
+- Requires the .NET 9.0.300 SDK or later to build (the .NET 11 SDK to target `net11.0`), because the generator uses
   C# interceptors.
 - The package enables its interceptor namespace (`KetPsi.MessageBrokers.RabbitMQ.Generated`) itself. If a project
   **replaces** `InterceptorsPreviewNamespaces` or `InterceptorsNamespaces` instead of appending to them, add that
