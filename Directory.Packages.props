@@ -7,17 +7,10 @@
   <!-- RabbitMQ.Client 7.2.2 publishes with zero trim/AOT warnings even when the whole assembly is rooted. -->
   <ItemGroup>
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
-    <PackageVersion Include="KetPsi.Extensions.Logging.Abstractions" Version="2.0.1" />
+    <PackageVersion Include="KetPsi.Extensions.Logging.Abstractions" Version="3.0.0" />
   </ItemGroup>
 
   <!-- Framework-aligned packages: each target framework uses the latest patch of its own major version. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
-    <!-- Transitive pin: Options.ConfigurationExtensions 8.0.0 brings Binder 8.0.0; take the latest 8.0 patch of its binding source generator. -->
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-  </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.22" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.22" />
@@ -27,6 +20,11 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
   </ItemGroup>
 
   <!-- Source generator. 4.14 has the interceptable-location API and still loads in .NET 9 SDK compilers. -->

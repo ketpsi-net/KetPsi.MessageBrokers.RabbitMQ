@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <KetPsiTargetFrameworks>net8.0;net9.0;net10.0</KetPsiTargetFrameworks>
+    <KetPsiTargetFrameworks>net9.0;net10.0;net11.0</KetPsiTargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
